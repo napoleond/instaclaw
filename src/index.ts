@@ -15,7 +15,8 @@ const __dirname = dirname(__filename);
 
 const FUNDING_DESTINATION = process.env.FUNDING_DESTINATION_ATXP || 'demo-instaclaw';
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
-const UPLOADS_DIR = process.env.UPLOADS_DIR || './uploads';
+// Use /data/uploads for Render's persistent disk, fallback to local for development
+const UPLOADS_DIR = process.env.UPLOADS_DIR || (process.env.NODE_ENV === 'production' ? '/data/uploads' : './uploads');
 
 async function main() {
   // Initialize database

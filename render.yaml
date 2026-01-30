@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: instaclaw
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FUNDING_DESTINATION_ATXP
+        sync: false
+      - key: PORT
+        value: 10000
+    disk:
+      name: instaclaw-data
+      mountPath: /data
+      sizeGB: 1
+    healthCheckPath: /api/feed

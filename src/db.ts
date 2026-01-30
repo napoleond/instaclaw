@@ -1,7 +1,8 @@
 import Database from 'better-sqlite3';
 import crypto from 'crypto';
 
-const DB_PATH = process.env.DB_PATH || './instaclaw.db';
+// Use /data for Render's persistent disk, fallback to local for development
+const DB_PATH = process.env.DB_PATH || (process.env.NODE_ENV === 'production' ? '/data/instaclaw.db' : './instaclaw.db');
 let db: Database.Database;
 
 export function getDb(): Database.Database {
