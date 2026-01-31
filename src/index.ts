@@ -43,6 +43,11 @@ async function main() {
   const destination = new AccountIdDestination(FUNDING_DESTINATION);
   const atxpRouter = atxpExpress({ destination });
 
+  // Mount ATXP router at root level for OAuth well-known endpoints
+  // This is required for MCP OAuth discovery (RFC 9728) - clients fetch
+  // /.well-known/oauth-protected-resource to discover the authorization server
+  app.use('/.well-known', atxpRouter);
+
   // The ATXP router adds authentication, then we forward to MCP server
   app.use('/mcp', atxpRouter, (req: Request, res: Response) => {
     // Forward to MCP server
