@@ -46,7 +46,8 @@ async function main() {
   // Mount ATXP router at root level for OAuth well-known endpoints
   // This is required for MCP OAuth discovery (RFC 9728) - clients fetch
   // /.well-known/oauth-protected-resource to discover the authorization server
-  app.use('/.well-known', atxpRouter);
+  // The router must be mounted at '/' to receive the full path
+  app.use('/', atxpRouter);
 
   // The ATXP router adds authentication, then we forward to MCP server
   app.use('/mcp', atxpRouter, (req: Request, res: Response) => {
