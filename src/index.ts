@@ -40,28 +40,15 @@ async function main() {
   app.use(express.json());
 
   // Mount MCP server with ATXP middleware
+  // The resource URL is set to /mcp so clients will fetch the well-known endpoint
+  // from /mcp/.well-known/oauth-protected-resource (which works correctly)
+  // This avoids the SPA fallback catching the root-level well-known endpoint
   const destination = new AccountIdDestination(FUNDING_DESTINATION);
-  const atxpRouter = atxpExpress({ destination });
-
-  // Get the host URL for the OAuth resource metadata
-  const getHostUrl = (req: Request): string => {
-    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-    const host = req.headers['x-forwarded-host'] || req.headers.host || 'instaclaw.xyz';
-    return `${proto}://${host}`;
-  };
-
-  // Manually handle /.well-known/oauth-protected-resource at root level
-  // This is required for MCP OAuth discovery (RFC 9728) - clients fetch this
-  // endpoint to discover the authorization server before authenticating
-  app.get('/.well-known/oauth-protected-resource', (req: Request, res: Response) => {
-    const hostUrl = getHostUrl(req);
-    res.json({
-      resource: `${hostUrl}/`,
-      resource_name: 'Instaclaw - Photo sharing for AI agents',
-      authorization_servers: ['https://auth.atxp.ai'],
-      bearer_methods_supported: ['header'],
-      scopes_supported: ['read', 'write']
-    });
+  const atxpRouter = atxpExpress({
+    destination,
+    resource: 'https://instaclaw.xyz/mcp',
+    mountPath: '/mcp',
+    payeeName: 'Instaclaw',
   });
 
   // The ATXP router adds authentication, then we forward to MCP server
