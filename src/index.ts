@@ -1,9 +1,9 @@
 import 'dotenv/config';
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { createMcpServer } from '@longrun/turtle';
+import { createHttpServer } from '@longrun/turtle';
 import { atxpExpress } from '@atxp/express';
 import { AccountIdDestination } from '@atxp/common';
 import { getDb, seedDemoData } from './db.js';
@@ -24,13 +24,6 @@ async function main() {
   seedDemoData();
   console.log('Database initialized');
 
-  // Create MCP server - this is an Express app itself
-  const mcpServer = createMcpServer({
-    name: 'instaclaw',
-    version: '1.0.0',
-    tools: allTools
-  });
-
   // Create main Express app
   const app = express();
   app.use(cors({
@@ -39,78 +32,103 @@ async function main() {
   }));
   app.use(express.json());
 
-  // Mount MCP server with ATXP middleware
-  // The resource URL must be the site root (https://instaclaw.xyz/) for ATXP token lookup
-  const destination = new AccountIdDestination(FUNDING_DESTINATION);
-  const atxpRouter = atxpExpress({
-    destination,
-    resource: 'https://instaclaw.xyz/',
-    mountPath: '/mcp',
+  // ATXP middleware at root level - handles .well-known and OAuth routes
+  // Must be mounted before other routes so it can handle .well-known discovery
+  // mountPath tells ATXP that the protected resource is at /mcp
+  app.use(atxpExpress({
+    destination: new AccountIdDestination(FUNDING_DESTINATION),
     payeeName: 'Instaclaw',
-  });
+    mountPath: '/mcp',
+  }));
 
-  // The ATXP router adds authentication, then we forward to MCP server
-  app.use('/mcp', atxpRouter, (req: Request, res: Response) => {
-    // Forward to MCP server
-    mcpServer(req, res);
-  });
-
-  // Cookie auth via query string (for browser agents that can't set cookies directly)
-  // Usage: GET /?instaclaw_cookie=XYZ
-  // Server sets HttpOnly cookie and redirects to clean URL
-  app.get('/', (req: Request, res: Response, next) => {
+  // Cookie bootstrap middleware - handles ?instaclaw_cookie=XYZ for agent browsers
+  app.use((req: Request, res: Response, next: NextFunction) => {
     const cookieValue = req.query.instaclaw_cookie;
-    if (cookieValue && typeof cookieValue === 'string') {
-      // Set HttpOnly cookie
+    if (typeof cookieValue === 'string' && cookieValue.length > 0) {
+      // Set the HTTP-only cookie
       res.cookie('instaclaw_auth', cookieValue, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
         maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
       });
-      // Redirect to clean URL (removes cookie from URL for security)
-      res.redirect('/');
+
+      // Redirect to clean URL (remove the cookie from query string)
+      const url = new URL(req.originalUrl, `http://${req.headers.host}`);
+      url.searchParams.delete('instaclaw_cookie');
+      const cleanPath = url.pathname + url.search;
+      res.redirect(302, cleanPath || '/');
       return;
     }
     next();
   });
 
+  // RFC 9728 compliant protected resource metadata route
+  // New atxp-call clients expect /{resource}/.well-known/oauth-protected-resource
+  // rather than /.well-known/oauth-protected-resource/{resource}
+  app.get('/mcp/.well-known/oauth-protected-resource', (req: Request, res: Response) => {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    res.json({
+      resource: `${protocol}://${host}/mcp`,
+      resource_name: 'Instaclaw',
+      authorization_servers: ['https://auth.atxp.ai'],
+      bearer_methods_supported: ['header'],
+      scopes_supported: ['read', 'write'],
+    });
+  });
+
   // Version endpoint to verify deployment
   app.get('/api/version', (_req: Request, res: Response) => {
-    res.json({ version: '1.0.1', deployedAt: new Date().toISOString() });
+    res.json({ version: '1.0.2', deployedAt: new Date().toISOString() });
   });
 
   // Mount API routes
   app.use(apiRouter);
 
+  // Create MCP server router with ATXP middleware for tool payment handling
+  const mcpServer = createHttpServer(
+    [{
+      tools: allTools,
+      name: 'instaclaw',
+      version: process.env.npm_package_version || '1.0.0',
+      mountpath: '/mcp',
+      supportSSE: false
+    }],
+    [
+      atxpExpress({
+        destination: new AccountIdDestination(FUNDING_DESTINATION),
+        payeeName: 'Instaclaw',
+      })
+    ]
+  );
+  app.use(mcpServer);
+
   // Serve uploaded images
   app.use('/uploads', express.static(join(process.cwd(), UPLOADS_DIR)));
 
-  // Serve static frontend
+  // Serve static frontend files
   app.use(express.static(join(__dirname, '..', 'public')));
 
-  // OAuth well-known endpoint at root level - redirect to /mcp path
-  // Some OAuth clients look for /.well-known/oauth-protected-resource at the root
-  app.get('/.well-known/oauth-protected-resource', (_req: Request, res: Response) => {
-    res.json({
-      resource: 'https://instaclaw.xyz/',
-      resource_name: 'Instaclaw',
-      authorization_servers: ['https://auth.atxp.ai'],
-      bearer_methods_supported: ['header'],
-      scopes_supported: ['read', 'write']
-    });
-  });
-
-  // SPA fallback - serve index.html for all other routes
-  app.get('/{*path}', (_req, res) => {
-    res.sendFile(join(__dirname, '..', 'public', 'index.html'));
+  // SPA fallback - serve index.html for all non-API routes
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/mcp') || req.path.startsWith('/.well-known')) {
+      return next();
+    }
+    // Only serve index.html for GET requests
+    if (req.method === 'GET') {
+      res.sendFile(join(__dirname, '..', 'public', 'index.html'));
+    } else {
+      next();
+    }
   });
 
   app.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
-║   🦞 INSTACLAW - Photo sharing for AI agents              ║
+║   INSTACLAW - Photo sharing for AI agents                 ║
 ║                                                           ║
 ║   Server running on port ${PORT}                            ║
 ║   MCP endpoint: http://localhost:${PORT}/mcp                ║
