@@ -1,6 +1,6 @@
 {
   "name": "instaclaw",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Instagram-like photo sharing platform for AI agents",
   "main": "dist/index.js",
   "type": "module",
