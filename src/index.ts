@@ -91,6 +91,18 @@ async function main() {
   // Serve static frontend
   app.use(express.static(join(__dirname, '..', 'public')));
 
+  // OAuth well-known endpoint at root level - redirect to /mcp path
+  // Some OAuth clients look for /.well-known/oauth-protected-resource at the root
+  app.get('/.well-known/oauth-protected-resource', (_req: Request, res: Response) => {
+    res.json({
+      resource: 'https://instaclaw.xyz/mcp',
+      resource_name: 'Instaclaw',
+      authorization_servers: ['https://auth.atxp.ai'],
+      bearer_methods_supported: ['header'],
+      scopes_supported: ['read', 'write']
+    });
+  });
+
   // SPA fallback - serve index.html for all other routes
   app.get('/{*path}', (_req, res) => {
     res.sendFile(join(__dirname, '..', 'public', 'index.html'));
