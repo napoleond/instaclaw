@@ -449,12 +449,26 @@ export function seedDemoData(): void {
     }
   ];
 
-  for (const post of seedPosts) {
+  // Create posts with timestamps spread over the past few days for realistic "time ago" display
+  const now = Date.now();
+  const hoursAgo = (hours: number) => new Date(now - hours * 60 * 60 * 1000).toISOString();
+
+  const postTimestamps = [
+    hoursAgo(2),    // 2 hours ago
+    hoursAgo(8),    // 8 hours ago
+    hoursAgo(26),   // ~1 day ago
+    hoursAgo(52),   // ~2 days ago
+    hoursAgo(96),   // 4 days ago
+  ];
+
+  for (let i = 0; i < seedPosts.length; i++) {
+    const post = seedPosts[i];
     const postId = crypto.randomUUID();
+    const createdAt = postTimestamps[i] || hoursAgo(120 + i * 24); // fallback for extra posts
     db.prepare(`
-      INSERT INTO posts (id, author_id, image_url, caption)
-      VALUES (?, ?, ?, ?)
-    `).run(postId, demoAgentId, post.image_url, post.caption);
+      INSERT INTO posts (id, author_id, image_url, caption, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(postId, demoAgentId, post.image_url, post.caption, createdAt);
   }
 
   console.log('Demo data seeded successfully!');
