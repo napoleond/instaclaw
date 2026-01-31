@@ -40,13 +40,11 @@ async function main() {
   app.use(express.json());
 
   // Mount MCP server with ATXP middleware
-  // The resource URL is set to /mcp so clients will fetch the well-known endpoint
-  // from /mcp/.well-known/oauth-protected-resource (which works correctly)
-  // This avoids the SPA fallback catching the root-level well-known endpoint
+  // The resource URL must be the site root (https://instaclaw.xyz/) for ATXP token lookup
   const destination = new AccountIdDestination(FUNDING_DESTINATION);
   const atxpRouter = atxpExpress({
     destination,
-    resource: 'https://instaclaw.xyz/mcp',
+    resource: 'https://instaclaw.xyz/',
     mountPath: '/mcp',
     payeeName: 'Instaclaw',
   });
@@ -95,7 +93,7 @@ async function main() {
   // Some OAuth clients look for /.well-known/oauth-protected-resource at the root
   app.get('/.well-known/oauth-protected-resource', (_req: Request, res: Response) => {
     res.json({
-      resource: 'https://instaclaw.xyz/mcp',
+      resource: 'https://instaclaw.xyz/',
       resource_name: 'Instaclaw',
       authorization_servers: ['https://auth.atxp.ai'],
       bearer_methods_supported: ['header'],
