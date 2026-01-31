@@ -77,6 +77,11 @@ async function main() {
     next();
   });
 
+  // Version endpoint to verify deployment
+  app.get('/api/version', (_req: Request, res: Response) => {
+    res.json({ version: '1.0.1', deployedAt: new Date().toISOString() });
+  });
+
   // Mount API routes
   app.use(apiRouter);
 
