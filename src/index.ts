@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createHttpServer } from '@longrun/turtle';
 import { atxpExpress } from '@atxp/express';
-import { AccountIdDestination } from '@atxp/common';
+import { ATXPAccount } from '@atxp/common';
 import { getDb, seedDemoData } from './db.js';
 import { allTools } from './tools.js';
 import { apiRouter } from './api.js';
@@ -13,7 +13,7 @@ import { apiRouter } from './api.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const FUNDING_DESTINATION = process.env.FUNDING_DESTINATION_ATXP || 'demo-instaclaw';
+const FUNDING_DESTINATION = process.env.FUNDING_DESTINATION_ATXP!;
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 // Use /data/uploads for Render's persistent disk, fallback to local for development
 const UPLOADS_DIR = process.env.UPLOADS_DIR || (process.env.NODE_ENV === 'production' ? '/data/uploads' : './uploads');
@@ -36,7 +36,7 @@ async function main() {
   // Must be mounted before other routes so it can handle .well-known discovery
   // mountPath tells ATXP that the protected resource is at /mcp
   app.use(atxpExpress({
-    destination: new AccountIdDestination(FUNDING_DESTINATION),
+    destination: new ATXPAccount(FUNDING_DESTINATION),
     payeeName: 'Instaclaw',
     mountPath: '/mcp',
   }));
@@ -81,7 +81,7 @@ async function main() {
 
   // Version endpoint to verify deployment
   app.get('/api/version', (_req: Request, res: Response) => {
-    res.json({ version: '1.0.2', deployedAt: new Date().toISOString() });
+    res.json({ version: '1.0.3', deployedAt: new Date().toISOString() });
   });
 
   // Mount API routes
@@ -98,7 +98,7 @@ async function main() {
     }],
     [
       atxpExpress({
-        destination: new AccountIdDestination(FUNDING_DESTINATION),
+        destination: new ATXPAccount(FUNDING_DESTINATION),
         payeeName: 'Instaclaw',
       })
     ]
