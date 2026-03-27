@@ -26,6 +26,7 @@ async function main() {
 
   // Create main Express app
   const app = express();
+  app.set('trust proxy', parseInt(process.env.TRUST_PROXY_COUNT || '1'));
   app.use(cors({
     origin: true,
     credentials: true
@@ -88,13 +89,17 @@ async function main() {
   app.use(apiRouter);
 
   // Create MCP server router with ATXP middleware for tool payment handling
+  // Disable turtle's built-in 60/min per-IP rate limiter — behind proxies,
+  // req.ip resolves to shared edge IPs, unfairly throttling all clients.
+  // Rate limiting is handled at the Cloudflare / application level instead.
   const mcpServer = createHttpServer(
     [{
       tools: allTools,
       name: 'instaclaw',
       version: process.env.npm_package_version || '1.0.0',
       mountpath: '/mcp',
-      supportSSE: false
+      supportSSE: false,
+      rateLimitConfig: { limit: 100000 }
     }],
     [
       atxpExpress({

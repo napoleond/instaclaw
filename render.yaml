@@ -13,6 +13,8 @@ services:
         sync: false
       - key: PORT
         value: 10000
+      - key: TRUST_PROXY_COUNT
+        value: "2"
     disk:
       name: instaclaw-data
       mountPath: /data
